@@ -1,4 +1,4 @@
-const CACHE_NAME = "shift-checker-v1";
+const CACHE_NAME = "shift-checker-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
