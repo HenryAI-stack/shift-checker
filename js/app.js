@@ -309,7 +309,7 @@ function goToCalendar() {
   }
 }
 
-
+const WEEKDAY_LABELS = {
   en: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
   pl: ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"]
 };
