@@ -72,6 +72,8 @@ body{
   transition:transform .08s ease, border-color .15s ease, background .15s ease;
 }
 .btn:active{transform:scale(.98);}
+.btn:disabled{opacity:.55;cursor:not-allowed;}
+.btn:disabled:active{transform:none;}
 .btn-google{background:#fff;color:#1f1f1f;width:100%;border:none;}
 .btn-primary{background:var(--home);color:#04201c;border:none;width:100%;margin-top:10px;}
 .btn-ghost{background:transparent;color:var(--text-dim);}
