@@ -77,6 +77,8 @@ body{
 .btn-google{background:#fff;color:#1f1f1f;width:100%;border:none;}
 .btn-primary{background:var(--home);color:#04201c;border:none;width:100%;margin-top:10px;}
 .btn-ghost{background:transparent;color:var(--text-dim);}
+.btn-secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
+.btn-calendar{width:auto;margin:16px auto 0;padding:10px 18px;font-size:.85rem;}
 .btn-danger{color:var(--danger);}
 .btn-icon{
   background:var(--surface);border:1px solid var(--border);color:var(--text);
