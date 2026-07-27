@@ -154,6 +154,8 @@ function wireStaticEvents() {
     renderCalendar();
   });
 
+  el("btn-go-calendar").addEventListener("click", () => goToCalendar());
+
   el("cal-prev").addEventListener("click", () => {
     calendarCursor.setUTCDate(1);
     calendarCursor.setUTCMonth(calendarCursor.getUTCMonth() - 1);
@@ -236,7 +238,78 @@ function refreshResult() {
   }
 }
 
-const WEEKDAY_LABELS = {
+/* ---------------- Calendar export ---------------- */
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function toBasicDate(date) {
+  const d = toUTCDateOnly(date);
+  return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}`;
+}
+
+// Known in-app browsers (Facebook, Instagram, Line, WeChat, etc.) and
+// generic Android WebView signature ("; wv)"). These can't reliably hand
+// off to native OS apps, so they get the Google Calendar web fallback.
+function isInAppWebView() {
+  const ua = navigator.userAgent || "";
+  return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Twitter|; ?wv\)/i.test(ua);
+}
+
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+}
+
+function currentEventTitle() {
+  const { type, holiday } = evaluateDay(selectedDate, settings.referenceMonday);
+  if (holiday) {
+    const name = (HOLIDAY_NAMES[currentLang] && HOLIDAY_NAMES[currentLang][holiday.key]) || holiday.key;
+    return `${t("result.holidayPrefix")} — ${name}`;
+  }
+  if (type === "weekend") return t("result.weekend");
+  return type === "office" ? t("result.office") : t("result.home");
+}
+
+function escapeICSText(str) {
+  return str.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;");
+}
+
+function goToCalendar() {
+  const start = toUTCDateOnly(selectedDate);
+  const end = addDaysUTC(start, 1); // exclusive end, per all-day event convention
+  const title = currentEventTitle();
+
+  if (isMobileDevice() && !isInAppWebView()) {
+    // Native OS calendar (Apple Calendar, Samsung Calendar, etc.) via an
+    // inline .ics — navigating to a data:text/calendar URI is the
+    // standard cross-platform trick to hand an event off to whatever
+    // calendar app is registered as default, without needing a backend.
+    const now = new Date();
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Shift-checker//EN",
+      "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT",
+      `UID:shift-checker-${toBasicDate(start)}@cloudplay.at`,
+      `DTSTAMP:${toBasicDate(now)}T${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}00Z`,
+      `DTSTART;VALUE=DATE:${toBasicDate(start)}`,
+      `DTEND;VALUE=DATE:${toBasicDate(end)}`,
+      `SUMMARY:${escapeICSText(title)}`,
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ].join("\r\n");
+    window.location.href = "data:text/calendar;charset=utf8," + encodeURIComponent(ics);
+  } else {
+    // WebView / desktop: no reliable native handoff, so open Google
+    // Calendar's web event-creation screen in a new tab/window instead.
+    const gcalUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+      `&text=${encodeURIComponent(title)}` +
+      `&dates=${toBasicDate(start)}/${toBasicDate(end)}`;
+    window.open(gcalUrl, "_blank", "noopener");
+  }
+}
+
+
   en: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
   pl: ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"]
 };
