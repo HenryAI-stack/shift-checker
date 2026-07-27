@@ -23,23 +23,17 @@ function isMondayISO(isoStr) {
 
 /* ---------------- Boot ---------------- */
 
-window.addEventListener("DOMContentLoaded", () => {
-  setLang("en");
-  wireStaticEvents();
+let gisReady = false;
 
-  initGoogleAuth(async (token, err) => {
-    if (err || !token) {
-      el("login-status").textContent = t("login.error");
-      return;
-    }
-    el("login-status").textContent = t("login.loading");
-    try {
-      const [user, remoteSettings] = await Promise.all([
-        fetchUserInfo(),
-        loadSettingsFromDrive()
-      ]);
+function onGoogleToken(token, err) {
+  if (err || !token) {
+    el("login-status").textContent = t("login.error");
+    return;
+  }
+  el("login-status").textContent = t("login.loading");
+  Promise.all([fetchUserInfo(), loadSettingsFromDrive()])
+    .then(([user, remoteSettings]) => {
       renderUser(user);
-
       if (remoteSettings && remoteSettings.referenceMonday) {
         settings = remoteSettings;
         writeLocalSettings(settings);
@@ -50,13 +44,51 @@ window.addEventListener("DOMContentLoaded", () => {
         setLang((cached && cached.language) || "en");
         showScreen("setup");
       }
-    } catch (e) {
+    })
+    .catch((e) => {
       console.error(e);
       el("login-status").textContent = t("login.error");
-    }
-  });
+    });
+}
 
-  el("btn-login").addEventListener("click", () => {
+// Called once the accounts.google.com/gsi/client script has actually
+// finished loading (wired via the script tag's onload in index.html).
+// This must not run before `google` exists, and DOMContentLoaded alone
+// does not guarantee that, since the script tag is async/defer.
+window.__onGsiLoaded = function () {
+  if (gisReady) return; // guard against double-init
+  gisReady = true;
+  initGoogleAuth(onGoogleToken);
+  const btn = el("btn-login");
+  btn.disabled = false;
+  el("login-status").textContent = "";
+};
+
+window.addEventListener("DOMContentLoaded", () => {
+  setLang("en");
+  wireStaticEvents();
+
+  const btn = el("btn-login");
+  btn.disabled = true;
+  el("login-status").textContent = t("login.loading");
+
+  // In case the GIS script already finished loading (e.g. served from
+  // cache) before this listener ran, the onload attribute may have fired
+  // before __onGsiLoaded existed — so also check directly.
+  if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+    window.__onGsiLoaded();
+  } else {
+    // Fallback: if the script fails to load (ad-blocker, offline, network
+    // policy), surface a clear error instead of a silently dead button.
+    setTimeout(() => {
+      if (!gisReady) {
+        el("login-status").textContent = t("login.gisBlocked");
+      }
+    }, 6000);
+  }
+
+  btn.addEventListener("click", () => {
+    if (!gisReady) return;
     el("login-status").textContent = "";
     requestLogin();
   });
