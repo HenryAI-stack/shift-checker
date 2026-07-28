@@ -6,6 +6,7 @@ const DRIVE_SCOPES = [
 
 let tokenClient = null;
 let accessToken = null;
+let refreshTimerId = null;
 
 function initGoogleAuth(onToken) {
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -17,9 +18,20 @@ function initGoogleAuth(onToken) {
         return;
       }
       accessToken = resp.access_token;
+      scheduleTokenRefresh(resp.expires_in);
       onToken(accessToken, null);
     }
   });
+}
+
+// Silent reauth: if the browser still has an active Google session and the
+// user already granted consent once, this returns a fresh token with no
+// account chooser / consent screen. `hintEmail` (when known) targets that
+// exact account instead of asking which one to use.
+function requestSilentLogin(hintEmail) {
+  const opts = { prompt: "" };
+  if (hintEmail) opts.hint = hintEmail;
+  tokenClient.requestAccessToken(opts);
 }
 
 function requestLogin() {
@@ -27,15 +39,29 @@ function requestLogin() {
 }
 
 function requestLoginFresh() {
-  tokenClient.requestAccessToken({ prompt: "consent" });
+  tokenClient.requestAccessToken({ prompt: "select_account consent" });
+}
+
+// Proactively renews the access token a few minutes before it expires
+// (Google tokens are short-lived, ~1h) so an open tab doesn't suddenly
+// hit an expired-token error mid-session.
+function scheduleTokenRefresh(expiresInSeconds) {
+  if (refreshTimerId) clearTimeout(refreshTimerId);
+  if (!expiresInSeconds) return;
+  const refreshInMs = Math.max((expiresInSeconds - 300) * 1000, 30000); // 5 min early, min 30s
+  refreshTimerId = setTimeout(() => {
+    requestSilentLogin((readLastUser() || {}).email);
+  }, refreshInMs);
 }
 
 function signOut() {
+  if (refreshTimerId) clearTimeout(refreshTimerId);
   if (accessToken && google?.accounts?.oauth2?.revoke) {
     google.accounts.oauth2.revoke(accessToken, () => {});
   }
   accessToken = null;
   clearLocalSettings();
+  clearLastUser();
 }
 
 async function fetchUserInfo() {

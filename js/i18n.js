@@ -2,6 +2,9 @@ const I18N = {
   en: {
     "login.subtitle": "Know where you're working, before you get there.",
     "login.button": "Sign in with Google",
+    "login.continueAs": "Continue",
+    "login.switchAccount": "Use a different account",
+    "login.autoSigningIn": "Signing you in…",
     "login.loading": "Signing in…",
     "login.error": "Sign-in failed. Please try again.",
     "login.gisBlocked": "Couldn't load Google Sign-In. Check your connection or ad-blocker, then reload.",
@@ -34,6 +37,9 @@ const I18N = {
   pl: {
     "login.subtitle": "Wiedz, gdzie pracujesz, zanim tam dotrzesz.",
     "login.button": "Zaloguj się przez Google",
+    "login.continueAs": "Kontynuuj",
+    "login.switchAccount": "Użyj innego konta",
+    "login.autoSigningIn": "Logowanie…",
     "login.loading": "Logowanie…",
     "login.error": "Logowanie nie powiodło się. Spróbuj ponownie.",
     "login.gisBlocked": "Nie udało się załadować logowania Google. Sprawdź połączenie lub blokadę reklam i odśwież stronę.",

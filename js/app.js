@@ -24,16 +24,29 @@ function isMondayISO(isoStr) {
 /* ---------------- Boot ---------------- */
 
 let gisReady = false;
+let autoAttemptInFlight = false;
 
 function onGoogleToken(token, err) {
   if (err || !token) {
-    el("login-status").textContent = t("login.error");
+    const wasAuto = autoAttemptInFlight;
+    autoAttemptInFlight = false;
+    if (wasAuto) {
+      // Silent/remembered attempt didn't go through (session expired,
+      // consent revoked, or the browser needed a real user gesture).
+      // Not an error from the user's point of view — just fall back to
+      // the visible "Continue" tap they can already see on screen.
+      el("login-status").textContent = "";
+    } else {
+      el("login-status").textContent = t("login.error");
+    }
     return;
   }
+  autoAttemptInFlight = false;
   el("login-status").textContent = t("login.loading");
   Promise.all([fetchUserInfo(), loadSettingsFromDrive()])
     .then(([user, remoteSettings]) => {
       renderUser(user);
+      writeLastUser(user);
       if (remoteSettings && remoteSettings.referenceMonday) {
         settings = remoteSettings;
         writeLocalSettings(settings);
@@ -51,6 +64,20 @@ function onGoogleToken(token, err) {
     });
 }
 
+function showRememberedLoginUI(user) {
+  el("login-remembered").classList.remove("hidden");
+  el("btn-login").classList.add("hidden");
+  const avatar = el("remembered-avatar");
+  if (user.picture) avatar.src = user.picture;
+  avatar.alt = user.name || user.email || "";
+  el("remembered-name").textContent = user.name || user.email || "";
+}
+
+function hideRememberedLoginUI() {
+  el("login-remembered").classList.add("hidden");
+  el("btn-login").classList.remove("hidden");
+}
+
 // Called once the accounts.google.com/gsi/client script has actually
 // finished loading (wired via the script tag's onload in index.html).
 // This must not run before `google` exists, and DOMContentLoaded alone
@@ -59,17 +86,31 @@ window.__onGsiLoaded = function () {
   if (gisReady) return; // guard against double-init
   gisReady = true;
   initGoogleAuth(onGoogleToken);
-  const btn = el("btn-login");
-  btn.disabled = false;
-  el("login-status").textContent = "";
+  el("btn-login").disabled = false;
+  el("btn-continue").disabled = false;
+
+  const remembered = readLastUser();
+  if (remembered) {
+    showRememberedLoginUI(remembered);
+    // Best-effort automatic silent reauth — if the browser still has an
+    // active Google session and consent was already granted, this signs
+    // the user back in with no tap at all. If the browser blocks it (no
+    // user gesture on this page load) or the session is gone, the
+    // "Continue" button underneath still lets them finish in one tap.
+    autoAttemptInFlight = true;
+    el("login-status").textContent = t("login.autoSigningIn");
+    requestSilentLogin(remembered.email);
+  } else {
+    el("login-status").textContent = "";
+  }
 };
 
 window.addEventListener("DOMContentLoaded", () => {
   setLang("en");
   wireStaticEvents();
 
-  const btn = el("btn-login");
-  btn.disabled = true;
+  el("btn-login").disabled = true;
+  el("btn-continue").disabled = true;
   el("login-status").textContent = t("login.loading");
 
   // In case the GIS script already finished loading (e.g. served from
@@ -87,10 +128,24 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 6000);
   }
 
-  btn.addEventListener("click", () => {
+  el("btn-login").addEventListener("click", () => {
     if (!gisReady) return;
     el("login-status").textContent = "";
     requestLogin();
+  });
+
+  el("btn-continue").addEventListener("click", () => {
+    if (!gisReady) return;
+    el("login-status").textContent = "";
+    const remembered = readLastUser();
+    requestSilentLogin(remembered && remembered.email);
+  });
+
+  el("btn-switch-account").addEventListener("click", () => {
+    clearLastUser();
+    hideRememberedLoginUI();
+    el("login-status").textContent = "";
+    requestLoginFresh();
   });
 });
 
@@ -192,6 +247,7 @@ function wireStaticEvents() {
     settings = null;
     el("modal-settings").classList.add("hidden");
     el("user-avatar").classList.add("hidden");
+    hideRememberedLoginUI();
     showScreen("login");
     el("login-status").textContent = "";
   });
