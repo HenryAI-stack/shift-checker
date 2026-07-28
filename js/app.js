@@ -329,6 +329,31 @@ function escapeICSText(str) {
   return str.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;");
 }
 
+// Installed/standalone PWAs run without browser chrome. Navigating
+// in-place to a data:text/calendar URI there just silently downloads the
+// file instead of the OS offering "open with Calendar" the way a normal
+// browser tab does. Opening it as a fresh navigation (new window/tab)
+// makes the OS treat it as regular browser traffic again, which restores
+// the calendar handoff.
+function isStandalonePWA() {
+  return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+         window.navigator.standalone === true;
+}
+
+function openDataUri(dataUri) {
+  if (isStandalonePWA()) {
+    const a = document.createElement("a");
+    a.href = dataUri;
+    a.target = "_blank";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } else {
+    window.location.href = dataUri;
+  }
+}
+
 function goToCalendar() {
   const start = toUTCDateOnly(selectedDate);
   const end = addDaysUTC(start, 1); // exclusive end, per all-day event convention
@@ -354,7 +379,7 @@ function goToCalendar() {
       "END:VEVENT",
       "END:VCALENDAR"
     ].join("\r\n");
-    window.location.href = "data:text/calendar;charset=utf8," + encodeURIComponent(ics);
+    openDataUri("data:text/calendar;charset=utf8," + encodeURIComponent(ics));
   } else {
     // WebView / desktop: no reliable native handoff, so open Google
     // Calendar's web event-creation screen in a new tab/window instead.
@@ -364,6 +389,7 @@ function goToCalendar() {
     window.open(gcalUrl, "_blank", "noopener");
   }
 }
+
 
 const WEEKDAY_LABELS = {
   en: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
